@@ -3,18 +3,17 @@ import Head from 'next/head';
 
 export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(false);
-  const [statusAlat, setStatusAlat] = useState("OFFLINE"); // Default Offline
+  const [statusAlat, setStatusAlat] = useState("OFFLINE");
   const [lastUpdate, setLastUpdate] = useState("-");
 
   // 1. Cek Status Alat (Auto-Refresh tiap 5 detik)
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch('/api/hardware'); // Endpoint ini harus balikin status terakhir
+        const res = await fetch('/api/hardware');
         const data = await res.json();
         
-        // Logika sederhana: Kalau data baru diupdate < 30 detik lalu = ONLINE
-        // (Sesuaikan sama logika backend lu ya)
+        // Logika Status
         if (data && data.status === "ONLINE") {
             setStatusAlat("ONLINE");
         } else {
@@ -27,24 +26,22 @@ export default function Dashboard() {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 5000); // Cek tiap 5 detik
+    const interval = setInterval(fetchStatus, 5000); 
     return () => clearInterval(interval);
   }, []);
 
-  // 2. Fungsi Tombol Kontrol (Maju/Mundur)
+  // 2. Fungsi Tombol Kontrol
   const handleManualFeed = async (arah) => {
     if (isLoading) return;
     setIsLoading(true);
 
     const perintahKirim = arah === "MAJU" ? "MANUAL" : "MUNDUR";
-    const durasiKirim = 5; // Default 5 detik
+    const durasiKirim = 10; // <--- UDAH GUA SET JADI 10 DETIK BANG! ⏱️
 
     try {
       const response = await fetch('/api/kontrol', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           perintah: perintahKirim,
           durasi: durasiKirim
@@ -52,7 +49,7 @@ export default function Dashboard() {
       });
 
       if (response.ok) {
-        alert(`✅ SUKSES! Perintah '${arah}' dikirim.`);
+        alert(`✅ SUKSES! Perintah '${arah}' selama 10 detik dikirim.`);
       } else {
         alert("❌ Gagal mengirim perintah.");
       }
@@ -72,30 +69,17 @@ export default function Dashboard() {
 
       <div className="max-w-md mx-auto space-y-6">
         
-        {/* HEADER & LOGOUT */}
+        {/* HEADER */}
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            🦆 Smart Feeder
-          </h1>
-          <button 
-            onClick={() => window.location.href = '/'}
-            className="text-sm bg-gray-800 px-3 py-1 rounded border border-gray-700 hover:bg-gray-700"
-          >
-            Logout
-          </button>
+          <h1 className="text-2xl font-bold flex items-center gap-2">🦆 Smart Feeder</h1>
+          <button onClick={() => window.location.href = '/'} className="text-sm bg-gray-800 px-3 py-1 rounded border border-gray-700">Logout</button>
         </div>
 
         {/* STATUS CARD */}
-        <div className={`p-4 rounded-xl border flex items-center justify-between shadow-lg transition-all
-          ${statusAlat === "ONLINE" 
-            ? "bg-green-900/30 border-green-500 shadow-green-500/20" 
-            : "bg-red-900/30 border-red-500 shadow-red-500/20"}`
-        }>
+        <div className={`p-4 rounded-xl border flex items-center justify-between shadow-lg transition-all ${statusAlat === "ONLINE" ? "bg-green-900/30 border-green-500 shadow-green-500/20" : "bg-red-900/30 border-red-500 shadow-red-500/20"}`}>
           <div>
             <p className="text-gray-400 text-xs uppercase font-bold tracking-wider">Status Alat</p>
-            <h2 className="text-2xl font-bold mt-1">
-              {statusAlat === "ONLINE" ? "ALAT ONLINE 🟢" : "ALAT OFFLINE 🔴"}
-            </h2>
+            <h2 className="text-2xl font-bold mt-1">{statusAlat === "ONLINE" ? "ALAT ONLINE 🟢" : "ALAT OFFLINE 🔴"}</h2>
           </div>
           <div className="text-right">
              <p className="text-xs text-gray-400">Terakhir dicek:</p>
@@ -103,54 +87,35 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* JADWAL (Placeholder) */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
-            <p className="text-xs text-gray-400 mb-1">Pagi (09:00 - 7kg)</p>
-            <p className="font-bold text-lg">⏳ BELUM</p>
-          </div>
-          <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
-            <p className="text-xs text-gray-400 mb-1">Sore (15:00 - 8kg)</p>
-            <p className="font-bold text-lg">⏳ BELUM</p>
-          </div>
-        </div>
-
-        {/* KONTROL MANUAL (BAGIAN UTAMA) */}
-        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl relative overflow-hidden">
-          {/* Efek Loading Overlay */}
+        {/* KONTROL MANUAL (TOMBOL BARU) */}
+        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl relative">
           {isLoading && (
             <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center z-10 backdrop-blur-sm">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-              <span className="ml-3 font-bold">Mengirim Perintah...</span>
+              <span className="ml-3 font-bold">Mengirim...</span>
             </div>
           )}
 
-          <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-            🎮 Kontrol Manual
-          </h3>
+          <h3 className="text-xl font-bold mb-4">🎮 Kontrol Manual</h3>
 
           <div className="flex flex-col gap-3">
             {/* TOMBOL MAJU */}
             <button
               onClick={() => handleManualFeed("MAJU")}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-lg transition-all active:scale-95 shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-lg transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2"
             >
-              <span>📤</span> KIRIM PAKAN SEKARANG (MAJU)
+              📤 KELUAR PAKAN (MAJU)
             </button>
 
-            {/* TOMBOL MUNDUR */}
+            {/* TOMBOL MUNDUR (INI YANG LU CARI) */}
             <button
               onClick={() => handleManualFeed("MUNDUR")}
               className="w-full bg-transparent border-2 border-red-600 text-red-500 hover:bg-red-600 hover:text-white font-bold py-3 px-6 rounded-lg transition-all active:scale-95 flex items-center justify-center gap-2"
             >
-              <span>🔄</span> ANTI MACET (MUNDUR)
+              🔄 ANTI MACET (MUNDUR)
             </button>
           </div>
-
-          <p className="text-gray-500 text-xs text-center mt-4">
-            *Tombol Biru untuk memberi pakan normal.<br/>
-            *Tombol Merah untuk memutar balik motor jika macet.
-          </p>
+          <p className="text-gray-500 text-xs text-center mt-4">*Durasi otomatis 10 Detik</p>
         </div>
 
       </div>
