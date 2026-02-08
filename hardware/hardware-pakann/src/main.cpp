@@ -1,159 +1,108 @@
 #include <Arduino.h>
+#include <SPI.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <Wire.h>
-#include "RTClib.h"
+#include <WiFiClientSecure.h>
 
 // ================= KONFIGURASI =================
 const char* ssid = "eyloqr";          
 const char* password = "yordanpp";    
-// GANTI LINK DI BAWAH SESUAI LINK VERCEL LU NANTI
-const char* serverUrl = "https://NAMA-PROJECT-LU.vercel.app/api/hardware"; 
-const char* ALAT_ID = "ALAT_UTAMA"; 
+const char* serverUrl = "https://peternakan-bumdes-961q.vercel.app/api/hardware"; 
+const char* ALAT_ID = "ALAT_UTAMA";
 
-// KALIBRASI WAKTU CURAH (Estimasi)
-// Misal: 1 Kg = butuh buka 5 detik.
-// 7 Kg = 35 Detik | 8 Kg = 40 Detik
-const unsigned long DURASI_PAGI = 35000; // 35 Detik
-const unsigned long DURASI_SORE = 40000; // 40 Detik
+// KONFIGURASI RELAY (2 Channel)
+const int PIN_MAJU = 26;   // IN1 (Maju/Keluar Pakan)
+const int PIN_MUNDUR = 27; // IN2 (Mundur/Anti-Macet)
 
-// SAFETY AKTUATOR
-const unsigned long ACT_BUKA_FULL = 29000;   // Mundur Mentok (Buka)
-const unsigned long ACT_TUTUP_SAFETY = 24600;// Maju (Tutup) - Jangan lebih!
-
-// JAM MAKAN
-const int JAM_PAGI = 9;  // 09:00
-const int JAM_SORE = 15; // 15:00
-
-// PIN
-#define RELAY_TUTUP  4   // Maju
-#define RELAY_BUKA   16  // Mundur
-
-RTC_DS3231 rtc;
-unsigned long lastCheck = 0;
-bool donePagi = false;
-bool doneSore = false;
-bool isMoving = false;
-
-// ================= FUNGSI GERAK =================
-void stopMotor() {
-  digitalWrite(RELAY_TUTUP, HIGH);
-  digitalWrite(RELAY_BUKA, HIGH);
-  isMoving = false;
-  Serial.println("⛔ Motor STOP");
-}
-
-void jalankanPakan(unsigned long durasiCurah) {
-  if (isMoving) return;
-  isMoving = true;
-  
-  Serial.println("\n🚀 MULAI SIKLUS PAKAN...");
-
-  // 1. BUKA PINTU (Mundur)
-  Serial.println("🔽 Membuka Pintu (29s)...");
-  digitalWrite(RELAY_TUTUP, HIGH);
-  digitalWrite(RELAY_BUKA, LOW);
-  delay(ACT_BUKA_FULL);
-  stopMotor();
-
-  // 2. TUNGGU CURAH (Pakan Jatuh)
-  Serial.print("⏳ Menunggu Pakan Jatuh (");
-  Serial.print(durasiCurah/1000);
-  Serial.println(" detik)...");
-  delay(durasiCurah);
-
-  // 3. TUTUP PINTU (Maju Safety)
-  Serial.println("🔼 Menutup Pintu (24.6s)...");
-  digitalWrite(RELAY_BUKA, HIGH);
-  digitalWrite(RELAY_TUTUP, LOW);
-  delay(ACT_TUTUP_SAFETY);
-  
-  stopMotor();
-  Serial.println("✅ SIKLUS SELESAI.");
-}
-
-// ================= FUNGSI SERVER =================
-void cekServer() {
-  if(WiFi.status() != WL_CONNECTED || isMoving) return;
-
-  HTTPClient http;
-  WiFiClientSecure client; 
-  client.setInsecure();
-  
-  http.begin(client, serverUrl);
-  http.addHeader("Content-Type", "application/json");
-
-  // Kirim Laporan Status
-  StaticJsonDocument<200> doc;
-  doc["id"] = ALAT_ID;
-  doc["pakan_pagi"] = donePagi;
-  doc["pakan_sore"] = doneSore;
-  
-  String body; serializeJson(doc, body);
-  int httpCode = http.POST(body);
-  
-  // Baca Balasan (Perintah Manual)
-  if(httpCode == 200) {
-    String resp = http.getString();
-    StaticJsonDocument<200> r; deserializeJson(r, resp);
-    String cmd = r["perintah"];
-    int durasi = r["durasi"];
-
-    if (cmd == "MANUAL" && durasi > 0) {
-      Serial.println("⚠️ DAPAT PERINTAH MANUAL!");
-      jalankanPakan(durasi * 1000);
-    }
-  }
-  http.end();
-}
-
-// ================= SETUP & LOOP =================
 void setup() {
   Serial.begin(115200);
   
-  // Setup Relay (Active LOW)
-  digitalWrite(RELAY_TUTUP, HIGH);
-  digitalWrite(RELAY_BUKA, HIGH);
-  pinMode(RELAY_TUTUP, OUTPUT);
-  pinMode(RELAY_BUKA, OUTPUT);
+  // Setup Pin Relay (Active LOW: HIGH=Mati, LOW=Nyala)
+  pinMode(PIN_MAJU, OUTPUT);
+  pinMode(PIN_MUNDUR, OUTPUT);
+  
+  // Pastikan Keduanya MATI dulu pas nyala
+  digitalWrite(PIN_MAJU, HIGH);
+  digitalWrite(PIN_MUNDUR, HIGH);
 
-  // Setup RTC
-  Wire.begin();
-  if (!rtc.begin()) Serial.println("❌ RTC Error!");
-  if (rtc.lostPower()) rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  Serial.println("\n=== TES HARDWARE (CEKLEK-CEKLEK) ===");
+  // Tes Maju Dikit
+  digitalWrite(PIN_MAJU, LOW); delay(200); digitalWrite(PIN_MAJU, HIGH); delay(200);
+  // Tes Mundur Dikit
+  digitalWrite(PIN_MUNDUR, LOW); delay(200); digitalWrite(PIN_MUNDUR, HIGH); delay(200);
 
-  // Setup WiFi
+  // Konek WiFi
   WiFi.begin(ssid, password);
-  while(WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+  Serial.print("Menghubungkan ke WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
   Serial.println("\n✅ WiFi Connected!");
 }
 
 void loop() {
-  DateTime now = rtc.now();
+  if (WiFi.status() == WL_CONNECTED) {
+    
+    WiFiClientSecure client;
+    client.setInsecure(); // Bypass SSL
+    
+    HTTPClient http;
+    
+    if (http.begin(client, serverUrl)) { 
+      
+      http.addHeader("Content-Type", "application/json");
+      StaticJsonDocument<200> doc;
+      doc["id"] = ALAT_ID;
+      doc["status"] = "ONLINE"; 
+      
+      String requestBody;
+      serializeJson(doc, requestBody);
 
-  // 1. LOGIKA JADWAL OTOMATIS
-  if (!isMoving) {
-    // Pagi
-    if (now.hour() == JAM_PAGI && now.minute() == 0 && !donePagi) {
-      jalankanPakan(DURASI_PAGI);
-      donePagi = true;
-    }
-    // Sore
-    if (now.hour() == JAM_SORE && now.minute() == 0 && !doneSore) {
-      jalankanPakan(DURASI_SORE);
-      doneSore = true;
-    }
-    // Reset Tengah Malam
-    if (now.hour() == 0 && now.minute() == 0) {
-      donePagi = false;
-      doneSore = false;
+      int httpResponseCode = http.POST(requestBody);
+      
+      if (httpResponseCode == 200) {
+        String response = http.getString();
+        
+        StaticJsonDocument<1024> docResponse;
+        DeserializationError error = deserializeJson(docResponse, response);
+
+        if (!error) {
+          String perintah = docResponse["perintah"].as<String>();
+          int durasi = docResponse["durasi"].as<int>(); // Ambil durasi dari server
+
+          if (durasi <= 0) durasi = 5; // Default 5 detik kalau kosong
+
+          // === LOGIKA GERAK ===
+          if (perintah == "MANUAL" || perintah == "MAJU") {
+            Serial.println("🦆 GERAK: MAJU (Pakan Keluar)...");
+            
+            digitalWrite(PIN_MUNDUR, HIGH); // Pastikan mundur MATI
+            delay(100); // Safety delay
+            digitalWrite(PIN_MAJU, LOW);    // Maju NYALA
+            
+            delay(durasi * 1000); // Tunggu sesuai durasi
+            
+            digitalWrite(PIN_MAJU, HIGH);   // MATI
+            Serial.println("✅ Selesai Maju.");
+            
+          } else if (perintah == "MUNDUR") {
+            Serial.println("⚠️ GERAK: MUNDUR (Anti-Macet)...");
+            
+            digitalWrite(PIN_MAJU, HIGH);   // Pastikan maju MATI
+            delay(100); // Safety delay
+            digitalWrite(PIN_MUNDUR, LOW);  // Mundur NYALA
+            
+            delay(durasi * 1000); // Tunggu sesuai durasi
+            
+            digitalWrite(PIN_MUNDUR, HIGH); // MATI
+            Serial.println("✅ Selesai Mundur.");
+          }
+        } 
+      }
+      http.end();
     }
   }
-
-  // 2. LAPOR & CEK PERINTAH WEB (Tiap 3 detik)
-  if (millis() - lastCheck > 3000) {
-    lastCheck = millis();
-    cekServer();
-  }
+  delay(1000); 
 }
