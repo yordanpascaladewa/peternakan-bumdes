@@ -7,24 +7,24 @@ export default async function handler(req, res) {
 
   try {
     const client = await clientPromise;
-    const db = client.db("peternakan"); // Pastikan nama DB bener
+    const db = client.db("peternakan"); 
     const { perintah, durasi } = req.body;
 
-    // UPDATE Tabel 'alats' supaya dibaca hardware.js
+    // Menulis perintah ke database agar bisa dibaca hardware
     await db.collection("alats").updateOne(
-      { id_alat: "ALAT_UTAMA" }, // Filter ID Alat lu
+      { id_alat: "ALAT_UTAMA" }, 
       { 
         $set: { 
-          perintah_manual: perintah, // "MANUAL" atau "MUNDUR"
+          perintah_manual: perintah, 
           durasi_manual: durasi || 10,
-          last_updated: new Date()
+          terakhir_diperbarui: new Date()
         } 
       },
       { upsert: true }
     );
 
-    res.status(200).json({ message: 'Sukses update perintah' });
+    return res.status(200).json({ status: "success", message: `Perintah ${perintah} tersimpan` });
   } catch (e) {
-    res.status(500).json({ message: 'Server Error' });
+    return res.status(500).json({ status: "error", message: e.message });
   }
 }

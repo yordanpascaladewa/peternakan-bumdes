@@ -4,76 +4,72 @@
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
 
-// ======================== KONFIGURASI ========================
-const char* ssid = "Woke";              // Nama WiFi lu
-const char* password = "golfzulu57";    // Password WiFi lu
-// URL sudah diarahkan ke API hardware di project baru
+// --- KONFIGURASI WIFI ---
+const char* ssid = "Woke";
+const char* password = "golfzulu57";
 const char* serverUrl = "https://peternakan-bumdes.vercel.app/api/hardware";
-const char* ALAT_ID = "ALAT_UTAMA";     // Harus sama dengan ID di database
 
-// KONFIGURASI RELAY (2 Channel)
-const int PIN_MAJU = 26;   // IN1 (Maju/Keluar Pakan)
-const int PIN_MUNDUR = 27;  // IN2 (Mundur/Anti-Macet)
+// --- KONFIGURASI PIN RELAY ---
+const int PIN_MAJU = 26;   // Relay 1
+const int PIN_MUNDUR = 27;  // Relay 2
 
 void setup() {
   Serial.begin(115200);
-
-  // Setup Pin Relay (Active LOW: HIGH=Mati, LOW=Nyala)
+  
   pinMode(PIN_MAJU, OUTPUT);
   pinMode(PIN_MUNDUR, OUTPUT);
-
-  // Pastikan Keduanya MATI dulu pas nyala
+  
+  // Posisi awal MATI (Active LOW)
   digitalWrite(PIN_MAJU, HIGH);
   digitalWrite(PIN_MUNDUR, HIGH);
 
-  Serial.println("\n=== TES HARDWARE (CEKLEK-CEKLEK) ===");
-  // Tes Gerak Dikit buat mastiin relay idup
-  digitalWrite(PIN_MAJU, LOW); delay(200); digitalWrite(PIN_MAJU, HIGH); delay(200);
-  digitalWrite(PIN_MUNDUR, LOW); delay(200); digitalWrite(PIN_MUNDUR, HIGH); delay(200);
-
-  // Koneksi WiFi
   WiFi.begin(ssid, password);
-  Serial.print("Menghubungkan ke WiFi");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\n✅ WiFi Connected!");
+  Serial.println("\n✅ WiFi Connect!");
 }
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     WiFiClientSecure client;
     client.setInsecure();
+    
     HTTPClient http;
     http.begin(client, serverUrl);
     http.addHeader("Content-Type", "application/json");
 
-    String httpRequestData = "{\"id\":\"ALAT_UTAMA\"}";
-    int httpResponseCode = http.POST(httpRequestData);
+    // Kirim ID alat ke server
+    String jsonRequest = "{\"id\":\"ALAT_UTAMA\"}";
+    int httpCode = http.POST(jsonRequest);
 
-    if (httpResponseCode == 200) {
+    if (httpCode == 200) {
       String response = http.getString();
+      Serial.println("Respon Server: " + response);
+
       StaticJsonDocument<200> doc;
       deserializeJson(doc, response);
 
-      String perintah = doc["perintah"]; // "MANUAL", "MUNDUR", atau "STANDBY"
+      String perintah = doc["perintah"];
       int durasi = doc["durasi"];
 
       if (perintah == "MANUAL") {
-        Serial.println(">>> AKSI: MAJU (10 DETIK)");
-        digitalWrite(26, LOW);  // Relay 1 Nyala
+        Serial.println(">>> EKSEKUSI: MAJU");
+        digitalWrite(PIN_MAJU, LOW);  // NYALA
         delay(durasi * 1000);
-        digitalWrite(26, HIGH); // Mati
+        digitalWrite(PIN_MAJU, HIGH); // MATI
+        Serial.println(">>> SELESAI");
       } 
       else if (perintah == "MUNDUR") {
-        Serial.println(">>> AKSI: MUNDUR (10 DETIK)");
-        digitalWrite(27, LOW);  // Relay 2 Nyala
+        Serial.println(">>> EKSEKUSI: MUNDUR");
+        digitalWrite(PIN_MUNDUR, LOW);  // NYALA
         delay(durasi * 1000);
-        digitalWrite(27, HIGH); // Mati
+        digitalWrite(PIN_MUNDUR, HIGH); // MATI
+        Serial.println(">>> SELESAI");
       }
     }
     http.end();
   }
-  delay(3000);
+  delay(2000); // Cek setiap 2 detik
 }
