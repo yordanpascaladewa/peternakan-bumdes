@@ -8,16 +8,15 @@ export default async function handler(req, res) {
   try {
     const client = await clientPromise;
     const db = client.db("peternakan"); // Pastikan nama DB bener
-
     const { perintah, durasi } = req.body;
 
-    // Update Database biar ESP32 baca
-    await db.collection("status_alat").updateOne(
-      { id: "ALAT_UTAMA" },
+    // UPDATE Tabel 'alats' supaya dibaca hardware.js
+    await db.collection("alats").updateOne(
+      { id_alat: "ALAT_UTAMA" }, // Filter ID Alat lu
       { 
         $set: { 
-          perintah: perintah, // "MANUAL" atau "MUNDUR"
-          durasi: durasi || 10, // Kalau kosong, default 10 detik
+          perintah_manual: perintah, // "MANUAL" atau "MUNDUR"
+          durasi_manual: durasi || 10,
           last_updated: new Date()
         } 
       },
@@ -25,9 +24,7 @@ export default async function handler(req, res) {
     );
 
     res.status(200).json({ message: 'Sukses update perintah' });
-
   } catch (e) {
-    console.error(e);
     res.status(500).json({ message: 'Server Error' });
   }
 }
