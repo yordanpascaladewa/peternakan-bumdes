@@ -6,9 +6,9 @@
 #include <WiFiClientSecure.h>
 
 // ================= KONFIGURASI =================
-const char* ssid = "eyloqr";          
-const char* password = "yordanpp";    
-const char* serverUrl = "https://peternakan-bumdes.vercel.app/api/hardware"; 
+const char* ssid = "Woke";          
+const char* password = "golfzulu57";    
+const char* serverUrl = "https://peternakan-bumdes-961q.vercel.app/dashboard"; 
 const char* ALAT_ID = "ALAT_UTAMA";
 
 // KONFIGURASI RELAY (2 Channel)
